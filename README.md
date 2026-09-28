@@ -2,8 +2,8 @@
 
 ```sh
 docker compose up -d --wait db        # postgres (schema.sql 自動適用)。5432 が使用中なら DB_PORT=55432 と DATABASE_URL を指定
-API_TOKEN=secret go run .             # http://localhost:8080
-API_TOKEN=secret docker compose run --rm zap   # spider + passive scan → zap/report.html
+API_TOKEN=secret go run main.go             # http://localhost:8080
+API_TOKEN=secret docker compose run --rm zap   # spider + passive scan → zap/report.json
 ```
 
 | method | path    | auth |
