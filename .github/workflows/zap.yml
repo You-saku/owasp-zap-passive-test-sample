@@ -9,11 +9,12 @@ permissions:
   contents: read
   issues: write
 
+env:
+  API_TOKEN: ci-token
+
 jobs:
   scan:
     runs-on: ubuntu-latest
-    env:
-      API_TOKEN: ci-token
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -28,10 +29,30 @@ jobs:
           ./api &
           curl --retry 10 --retry-connrefused --retry-delay 1 -sf localhost:8080/health
 
-      - name: ZAP spider + passive scan (creates/updates issue)
-        uses: zaproxy/action-baseline@v0.14.0
+      - name: ZAP spider + passive scan (docker)
+        # zap-baseline.py は WARN があると exit 2 になるので無視し、判定は次のステップで行う
+        run: docker compose run --rm zap || true
+
+      - uses: actions/upload-artifact@v4
         with:
-          target: http://localhost:8080
-          artifact_name: zap-report
+          name: zap-report
+          path: zap/report.json
+
+      - name: Register Medium+ findings as issues (1 alert = 1 issue, skip if exists)
         env:
-          ZAP_AUTH_HEADER_VALUE: Bearer ${{ env.API_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          run_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          # 既存の open issue タイトルを 1 回だけ取得し、[ZAP <alertRef>] の完全一致で判定する
+          existing=$(gh issue list --state open --limit 500 --search "ZAP in:title" --json title -q '.[].title')
+          jq -cf zap-issue.jq zap/report.json | while read -r alert; do
+            key=$(jq -r .key <<<"$alert")
+            title=$(jq -r .title <<<"$alert")
+            if grep -qF "$key" <<<"$existing"; then
+              echo "skip (exists): $title"
+              continue
+            fi
+            { jq -r .body <<<"$alert"; printf -- '---\nrun: %s\n' "$run_url"; } \
+              | gh issue create --title "$title" --body-file -
+            echo "created: $title"
+          done
