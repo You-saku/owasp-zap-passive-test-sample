@@ -30,8 +30,12 @@ jobs:
           curl --retry 10 --retry-connrefused --retry-delay 1 -sf localhost:8080/health
 
       - name: ZAP spider + passive scan (docker)
-        # zap-baseline.py は WARN があると exit 2 になるので無視し、判定は次のステップで行う
-        run: docker compose run --rm zap || true
+        run: |
+          # レポート出力先。事前に作って書込可にしないと docker が root 所有で作り、コンテナ内の zap ユーザーが書けない
+          mkdir -p zap && chmod a+w zap
+          rc=0; docker compose run --rm zap || rc=$?
+          echo "zap-baseline exit=$rc (0=pass 1=fail 2=warn 3+=error)"
+          [ "$rc" -le 2 ] && test -s zap/report.json
 
       - uses: actions/upload-artifact@v4
         with:
