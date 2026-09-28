@@ -18,10 +18,11 @@ services:
   zap:
     image: ghcr.io/zaproxy/zaproxy:stable
     profiles: [scan]
-    command: zap-baseline.py -t http://host.docker.internal:8080 -J report.json
+    command: zap-baseline.py -t http://host.docker.internal:8080 -J report.json --hook=/zap/hooks.py
     environment:
       ZAP_AUTH_HEADER_VALUE: Bearer ${API_TOKEN}
     volumes:
       - ./zap:/zap/wrk:rw
+      - ./zap-hooks.py:/zap/hooks.py:ro
     extra_hosts:
       - "host.docker.internal:host-gateway"
