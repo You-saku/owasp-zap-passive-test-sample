@@ -1,0 +1,37 @@
+name: zap-passive-scan
+
+on:
+  schedule:
+    - cron: "0 0 * * 1" # 毎週月曜 09:00 JST
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    env:
+      API_TOKEN: ci-token
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - run: docker compose up -d --wait db
+
+      - name: Run API on host
+        run: |
+          go build -o api .
+          ./api &
+          curl --retry 10 --retry-connrefused --retry-delay 1 -sf localhost:8080/health
+
+      - name: ZAP spider + passive scan (creates/updates issue)
+        uses: zaproxy/action-baseline@v0.14.0
+        with:
+          target: http://localhost:8080
+          artifact_name: zap-report
+        env:
+          ZAP_AUTH_HEADER_VALUE: Bearer ${{ env.API_TOKEN }}

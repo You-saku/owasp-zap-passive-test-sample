@@ -1,0 +1,27 @@
+services:
+  db:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: app
+      POSTGRES_DB: app
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    volumes:
+      - ./schema.sql:/docker-entrypoint-initdb.d/schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U app"]
+      interval: 2s
+      retries: 15
+
+  # ローカル用: docker compose run --rm zap  (Go はホストで起動しておく)
+  zap:
+    image: ghcr.io/zaproxy/zaproxy:stable
+    profiles: [scan]
+    command: zap-baseline.py -t http://host.docker.internal:8080 -r report.html
+    environment:
+      ZAP_AUTH_HEADER_VALUE: Bearer ${API_TOKEN}
+    volumes:
+      - ./zap:/zap/wrk:rw
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
